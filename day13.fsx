@@ -163,85 +163,25 @@ let parseInput (input: string) =
                    | _ -> None)
   |> Array.toList
 
-let rec inCorrectOrder ((left: Packet list), (right: Packet list)): bool =
-  let left = left |> List.toArray
-  let right = right |> List.toArray
+// I didn't really understand the puzzle instructions about comparisons so I ended up stealing this
+// algorithm from Amons at https://fasterthanli.me/series/advent-of-code-2022/part-13
+// I did, at least, translate it from Rust to F# so it's not _entirely_ plagarized
+let rec compare (left: Packet) (right: Packet) =
+  match left, right with
+  | PacketValue left, PacketValue right -> (left :> System.IComparable<int>).CompareTo(right)
+  | PacketValue _, PacketList _ -> compare (PacketList [left]) right
+  | PacketList _, PacketValue _ -> compare left (PacketList [right])
+  | PacketList left, PacketList right ->
+        Seq.zip left right
+        |> Seq.map (fun (left, right) -> compare left right)
+        |> Seq.tryFind (fun c -> c <> 0)
+        |> Option.defaultValue ((left.Length :> System.IComparable<int>).CompareTo(right.Length))
 
-  let mutable answer = true
-  let mutable keepGoing = true
-
-  for i = 0 to (left.Length - 1) do
-    if keepGoing then
-      let lhs = left[i]
-      let rhs = right |> Array.tryItem i
-
-      match rhs with
-      | Some rhs -> ()
-          match lhs, rhs with
-          | PacketList l, PacketList r ->
-              answer <- inCorrectOrder(l, r)
-      | None ->
-          keepGoing <- false
-
-  answer
+let inCorrectOrder (left, right) = (compare left right) < 0
 
 
-
-// let inCorrectOrder (left, right) : bool =
-//   let rec inner left right=
-//     match left, right with
-//     | PacketValue l, PacketValue r ->
-//         if l = r then None
-//         elif l < r then Some true
-//         else Some false
-
-//     | PacketValue _, PacketList _ -> inner (PacketList [left]) right
-//     | PacketList _, PacketValue _ -> inner left (PacketList [right])
-//     | PacketList l, PacketList r ->
-//         let pairs = Seq.zip l r |> Seq.toList
-//         let mutable answer = None
-//         for (left, right) in pairs do
-//           match answer with
-//           | Some _ -> ()
-//           | None ->
-//               answer <- (inner left right)
-
-//         answer
-
-//   match inner left right with
-//   | Some answer -> answer
-//   | None -> false
-
-      // let pairs = Seq.zip l r |> Seq.toList
-
-      // let allEqual = pairs |> List.forall (fun (left, right) -> left = right)
-      // if allEqual then
-      //   (l.Length = r.Length) || (l.Length > r.Length)
-      // else
-      //   let rec inner acc pairs =
-      //     match acc, pairs with
-      //     | true, [] -> true // we're out of input so all of the inputs were acceptable
-      //     | true, (left, right)::rest ->
-      //       // if left is less than right then we can stop; it's true
-      //       // if left = right then we will keep going until we run out of pairs
-      //       // (if left <> right then acc will be false and we'll short circuit on the next go-round)
-      //       if left < right then
-      //         true
-      //       else
-      //         inner (left = right) rest
-      //     | false, _ -> false
-
-      //   inner true pairs
-
-
-
-
-
-
-
-
-let inputPath = "day13.test.txt"
-// let inputPath = "day13.real.txt"
+//let inputPath = "day13.test.txt"
+let inputPath = "day13.real.txt"
 
 let input = System.IO.File.ReadAllText(inputPath) |> parseInput
 
@@ -250,5 +190,30 @@ input
 |> List.mapi (fun i pair -> i, inCorrectOrder pair)
 |> List.filter (fun (_, res) -> res)
 |> List.map (fst >> ((+) 1))
+|> List.sum
+|> printf "Part 1 Sum of indexes in correct order: %d"
 
+// Part 2
+let unpairedList =
+  input
+  |> List.collect (fun (left, right) -> [left; right])
 
+let dividerPacket2 = PacketList [ PacketList [ PacketValue 2]]
+let dividerPacket6 = PacketList [ PacketList [ PacketValue 6]]
+
+let sortedList =
+  unpairedList
+  |> List.append [ dividerPacket2; dividerPacket6 ]
+  |> List.sortWith compare
+
+let index2 =
+  sortedList
+  |> List.findIndex (fun i -> i = dividerPacket2)
+  |> (+) 1
+
+let index6 =
+  sortedList
+  |> List.findIndex (fun i -> i = dividerPacket6)
+  |> (+) 1
+
+printfn "Part 2 Sum of Key: %d" (index2 * index6)
